@@ -1,0 +1,1228 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RenJS Mind Map (V2.0)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #36393f;
+            --canvas-bg: #2f3136;
+            --node-bg: #40444b;
+            --text-color: #ffffff;
+            --text-shadow-color: rgba(0, 0, 0, 0.4);
+            --border-color: #2f3136;
+            --shadow-color: rgba(0, 0, 0, 0.5);
+            --accent-color: #b9bbbe;
+            --danger-color: #ff6961;
+
+            --dialogue-bg: #8ea1e1;
+            --label-bg: #77dd77;
+            --jump-bg: #fdfd96;
+            --menu-bg: #ffb347;
+            --comment-bg: #c19a6b;
+            --define-bg: #80ced6;
+            --scene-bg: #b2c2f2;
+            --audio-bg: #d1a3d1;
+            --flow-bg: #ff6961;
+            --python-bg: #b1a296;
+            --movie-bg: #a4bdf5;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        .main-container {
+            display: flex;
+            flex-grow: 1;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .io-panel {
+            display: flex;
+            flex-direction: column;
+            width: 350px;
+            background-color: var(--canvas-bg);
+            padding: 10px;
+            border-right: 2px solid var(--border-color);
+            flex-shrink: 0;
+            transition: width 0.3s ease, padding 0.3s ease;
+            overflow: hidden;
+        }
+
+        .io-panel h3 {
+            margin-top: 0;
+            text-align: center;
+        }
+
+        .io-panel textarea {
+            flex-grow: 1;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 13px;
+            white-space: pre;
+            padding: 10px;
+            box-sizing: border-box;
+            resize: none;
+            margin-bottom: 10px;
+        }
+
+        .io-panel .button-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .io-panel button {
+            flex-grow: 1;
+            color: var(--text-color);
+            border: none;
+            padding: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: opacity 0.2s;
+        }
+
+        .io-panel button:hover {
+            opacity: 0.8;
+        }
+
+        #io-panel-toggle {
+            position: absolute;
+            left: 362px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 20px;
+            height: 60px;
+            background-color: var(--node-bg);
+            color: var(--text-color);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-top-right-radius: 8px;
+            border-bottom-right-radius: 8px;
+            z-index: 101;
+            transition: left 0.3s ease;
+            user-select: none;
+        }
+
+        .main-container.collapsed .io-panel {
+            width: 0;
+            padding: 0;
+            border-right: none;
+        }
+
+        .main-container.collapsed #io-panel-toggle {
+            left: 0;
+        }
+
+        .content-wrapper {
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+            position: relative;
+        }
+
+        .toolbar {
+            padding: 10px;
+            background-color: var(--canvas-bg);
+            border-bottom: 2px solid var(--border-color);
+            box-shadow: 0 2px 5px var(--shadow-color);
+            z-index: 100;
+            text-align: center;
+            flex-shrink: 0;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 5px;
+        }
+
+        .toolbar button {
+            color: var(--text-color);
+            border: none;
+            padding: 8px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: opacity 0.2s;
+            text-shadow: 1px 1px 2px var(--text-shadow-color);
+        }
+
+        .toolbar button:hover {
+            opacity: 0.8;
+        }
+
+        .group-title {
+            font-weight: bold;
+            margin: 0 10px;
+            align-self: center;
+            color: var(--accent-color);
+            font-size: 12px;
+        }
+
+        #canvas {
+            position: relative;
+            width: 100%;
+            flex-grow: 1;
+            background-color: var(--canvas-bg);
+            background-image:
+                linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+            background-size: 20px 20px;
+            overflow: hidden;
+            cursor: grab;
+        }
+
+        #canvas.panning {
+            cursor: grabbing;
+        }
+
+        #minimap-container {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 200px;
+            height: 150px;
+            background-color: rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--accent-color);
+            border-radius: 5px;
+            z-index: 200;
+            overflow: hidden;
+            cursor: crosshair;
+        }
+
+        #minimap-viewport {
+            position: absolute;
+            background-color: rgba(255, 255, 255, 0.2);
+            border: 1px solid white;
+            pointer-events: none;
+        }
+
+        #mindmap-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 1px;
+            height: 1px;
+        }
+
+        #svg-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            transform-origin: 0 0;
+        }
+
+        #svg-container path {
+            pointer-events: all;
+            cursor: pointer;
+        }
+
+        .connection-label {
+            font-size: 12px;
+            fill: var(--menu-bg);
+            text-anchor: middle;
+            paint-order: stroke;
+            stroke: var(--bg-color);
+            stroke-width: 3px;
+        }
+
+        .node {
+            position: absolute;
+            background-color: var(--node-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: 3px 3px 8px var(--shadow-color);
+            min-width: 220px;
+            display: flex;
+            flex-direction: column;
+            cursor: move;
+            z-index: 10;
+        }
+
+        .node-header {
+            background-color: var(--dialogue-bg);
+            color: var(--text-color);
+            padding: 5px 10px;
+            border-top-left-radius: 7px;
+            border-top-right-radius: 7px;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            text-shadow: 1px 1px 2px var(--text-shadow-color);
+        }
+
+        .node.label .node-header,
+        .node.jump .node-header,
+        .node.call .node-header {
+            color: #333;
+            text-shadow: none;
+        }
+
+        .node.label .node-header {
+            background-color: var(--label-bg);
+        }
+
+        .node.jump .node-header,
+        .node.scene .node-header {
+            /* Scene also acts as Jump often? No, Scene is background */
+            background-color: var(--scene-bg);
+        }
+
+        .node.menu .node-header,
+        .node.choice .node-header {
+            background-color: var(--menu-bg);
+        }
+
+        .node.character .node-header,
+        .node.image-def .node-header,
+        .node.audio-def .node-header,
+        .node.variable .node-header,
+        .node.transform .node-header,
+        .node.init-python .node-header {
+            background-color: var(--define-bg);
+        }
+
+        .node.scene .node-header,
+        .node.show .node-header,
+        .node.hide .node-header {
+            background-color: var(--scene-bg);
+        }
+
+        .node.audio .node-header {
+            background-color: var(--audio-bg);
+        }
+
+        .node.movie .node-header,
+        .node.wait .node-header {
+            background-color: var(--movie-bg);
+        }
+
+        .node.if .node-header,
+        .node.else .node-header,
+        .node.call .node-header,
+        .node.return .node-header {
+            background-color: var(--flow-bg);
+        }
+
+        .node.python .node-header,
+        .node.python-one-line .node-header,
+        .node.effect .node-header {
+            background-color: var(--python-bg);
+        }
+
+        .node.dialogue .node-header,
+        .node.say .node-header {
+            background-color: var(--dialogue-bg);
+        }
+
+        .node.comment .node-header {
+            background-color: var(--comment-bg);
+        }
+
+        .delete-btn {
+            cursor: pointer;
+            font-weight: bold;
+            color: var(--danger-color);
+            padding: 0 5px;
+            filter: drop-shadow(1px 1px 1px var(--text-shadow-color));
+        }
+
+        .node-content {
+            padding: 10px;
+        }
+
+        .node input,
+        .node textarea,
+        .node select {
+            width: calc(100% - 16px);
+            background-color: var(--bg-color);
+            border: 1px solid var(--border-color);
+            border-radius: 3px;
+            color: var(--text-color);
+            padding: 5px 8px;
+            margin-bottom: 5px;
+            font-family: inherit;
+            cursor: text;
+        }
+
+        .node input::placeholder,
+        .node textarea::placeholder {
+            color: var(--accent-color);
+        }
+
+        .connector {
+            position: absolute;
+            bottom: -7px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 14px;
+            height: 14px;
+            background-color: var(--dialogue-bg);
+            border: 2px solid var(--bg-color);
+            border-radius: 50%;
+            cursor: pointer;
+            z-index: 15;
+        }
+
+        .connector.connecting {
+            background-color: var(--danger-color);
+        }
+    </style>
+</head>
+
+<body>
+    <datalist id="character-list-global"></datalist>
+    <datalist id="image-list-global"></datalist>
+    <datalist id="audio-list-global"></datalist>
+    <datalist id="variable-list-global"></datalist>
+    <datalist id="transform-list-global"></datalist>
+    <datalist id="label-list-global"></datalist>
+
+    <div class="main-container">
+        <div class="io-panel">
+            <h3>RenJS Story</h3>
+            <textarea id="script-input" spellcheck="false"
+                placeholder="Paste your Story.yaml content here..."></textarea>
+            <div class="button-group">
+                <button id="open-file-btn" style="background-color: #fca311;">📂 Open Story File</button>
+                <button id="save-file-btn" style="background-color: #ff006e;">💾 Save to File</button>
+            </div>
+            <div class="button-group" style="margin-top: 5px;">
+                <button id="import-btn" style="background-color: #7289da;">▼ Import Text</button>
+                <button id="export-btn" style="background-color: #43b581;">▲ Export Text</button>
+            </div>
+            <div id="file-status" style="margin-top: 10px; font-size: 12px; color: #888; text-align: center;"></div>
+        </div>
+        <div id="io-panel-toggle" title="Toggle Panel">◀</div>
+        <div class="content-wrapper">
+            <div class="toolbar">
+                <span class="group-title">Flow</span>
+                <button style="background-color: var(--label-bg);" onclick="createNode('label')">Label
+                    (Start/Part)</button>
+                <button style="background-color: var(--menu-bg);" onclick="createNode('choice')">Choice</button>
+                <button style="background-color: var(--jump-bg);" onclick="createNode('scene')">Scene / Jump</button>
+                <button style="background-color: var(--flow-bg);" onclick="createNode('call')">Call</button>
+
+                <span class="group-title">Actions</span>
+                <button style="background-color: var(--dialogue-bg);" onclick="createNode('say')">Say</button>
+                <button style="background-color: var(--scene-bg);" onclick="createNode('show')">Show</button>
+                <button style="background-color: var(--scene-bg);" onclick="createNode('hide')">Hide</button>
+                <button style="background-color: var(--audio-bg);" onclick="createNode('audio')">Audio</button>
+                <button style="background-color: var(--movie-bg);" onclick="createNode('wait')">Wait</button>
+                <button style="background-color: #ff006e;" onclick="createNode('effect')">Effect / Break</button>
+
+                <span class="group-title">Logic</span>
+                <button style="background-color: var(--flow-bg);" onclick="createNode('if')">If</button>
+                <button style="background-color: var(--flow-bg);" onclick="createNode('else')">Else</button>
+                <button style="background-color: var(--variable-bg);" onclick="createNode('variable')">Set Var</button>
+
+                <span class="group-title">Tools</span>
+                <button style="background-color: #5865f2;" id="layout-btn" onclick="autoLayout()">Auto-Layout</button>
+                <button style="background-color: var(--danger-color);" id="clear-btn" onclick="clearCanvas()">Clear
+                    Canvas</button>
+            </div>
+            <div id="canvas">
+                <div id="mindmap-container">
+                    <svg id="svg-container"></svg>
+                </div>
+            </div>
+            <div id="minimap-container">
+                <canvas id="minimap-canvas"></canvas>
+                <div id="minimap-viewport"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- STATE & SETUP ---
+        const canvas = document.getElementById('canvas');
+        const mindmapContainer = document.getElementById('mindmap-container');
+        const scriptInput = document.getElementById('script-input');
+        const minimapContainer = document.getElementById('minimap-container');
+        const minimapCanvas = document.getElementById('minimap-canvas');
+        const minimapViewport = document.getElementById('minimap-viewport');
+        const minimapCtx = minimapCanvas.getContext('2d');
+        const fileStatusEl = document.getElementById('file-status');
+
+        let state = { nodes: {}, connections: [], pan: { x: 0, y: 0 } };
+        let activeNode = null, dragOffset = { x: 0, y: 0 };
+        let isPanning = false, panStart = { x: 0, y: 0 };
+        let connectionState = { active: false, fromNode: null, line: null };
+        let mapBounds = { minX: 0, minY: 0, maxX: 0, maxY: 0, width: 0, height: 0, scale: 1 };
+        let fileHandle = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('import-btn').addEventListener('click', importScript);
+            document.getElementById('export-btn').addEventListener('click', exportScript);
+            document.getElementById('open-file-btn').addEventListener('click', openFile);
+            document.getElementById('save-file-btn').addEventListener('click', saveFile);
+
+            const toggleButton = document.getElementById('io-panel-toggle');
+            const mainContainer = document.querySelector('.main-container');
+            toggleButton.addEventListener('click', () => {
+                const isCollapsed = mainContainer.classList.toggle('collapsed');
+                toggleButton.textContent = isCollapsed ? '▶' : '◀';
+            });
+
+            minimapContainer.addEventListener('mousedown', handleMinimapPan);
+            loadState();
+        });
+
+        // --- FILE SYSTEM API ---
+        async function openFile() {
+            try {
+                [fileHandle] = await window.showOpenFilePicker({
+                    types: [{ description: 'YAML Files', accept: { 'text/yaml': ['.yaml', '.yml'] } }],
+                });
+                const file = await fileHandle.getFile();
+                const contents = await file.text();
+                scriptInput.value = contents;
+                fileStatusEl.textContent = `File: ${file.name}`;
+                importScript(); // Auto-import on open
+            } catch (err) {
+                console.error("File open failed:", err);
+            }
+        }
+
+        async function saveFile() {
+            try {
+                const yamlContent = generateCodeFromState();
+                scriptInput.value = yamlContent;
+                if (!fileHandle) {
+                    fileHandle = await window.showSaveFilePicker({
+                        types: [{ description: 'YAML Files', accept: { 'text/yaml': ['.yaml', '.yml'] } }],
+                    });
+                }
+                const writable = await fileHandle.createWritable();
+                await writable.write(yamlContent);
+                await writable.close();
+                fileStatusEl.textContent = `Saved to: ${fileHandle.name}`;
+                alert("Saved!");
+            } catch (err) {
+                console.error("File save failed:", err);
+                alert("Save failed (or cancelled).");
+            }
+        }
+
+        function saveState() {
+            try {
+                // Remove cyclic references like 'el' before saving
+                const stateToSave = { ...state, nodes: Object.fromEntries(Object.entries(state.nodes).map(([id, node]) => [id, { ...node, el: undefined }])) };
+                localStorage.setItem('renjsMindMapDataV2', JSON.stringify(stateToSave));
+                localStorage.setItem('renjsMindMapScriptV2', scriptInput.value);
+            } catch (error) { console.error("Failed to save state:", error); }
+        }
+
+        function loadState() {
+            const savedData = localStorage.getItem('renjsMindMapDataV2');
+            const savedScript = localStorage.getItem('renjsMindMapScriptV2');
+            if (savedScript) scriptInput.value = savedScript;
+
+            if (savedData) {
+                try {
+                    const loadedState = JSON.parse(savedData);
+                    state = { ...state, ...loadedState };
+                    mindmapContainer.innerHTML = '<svg id="svg-container"></svg>';
+                    // Re-create nodes
+                    Object.values(state.nodes).forEach(nodeData => createNode(nodeData.type, nodeData.id, nodeData));
+                } catch (e) {
+                    console.error("Error loading state", e);
+                    clearCanvas(false);
+                }
+            } else {
+                // If new, create a default start node
+                if (Object.keys(state.nodes).length === 0) {
+                    createNode('label', null, { x: 100, y: 100, content: { name: 'start' } });
+                }
+            }
+
+            requestAnimationFrame(() => {
+                updatePanTransform();
+                resizeSvgContainer();
+                updateConnections();
+                drawMinimap();
+            });
+        }
+
+        function clearCanvas(confirmClear = true) {
+            if (confirmClear && !confirm("Are you sure? This will delete all nodes and connections.")) return;
+            localStorage.removeItem('renjsMindMapDataV2');
+            state = { nodes: {}, connections: [], pan: { x: 0, y: 0 } };
+            mindmapContainer.innerHTML = '<svg id="svg-container"></svg>';
+            updateConnections();
+            drawMinimap();
+        }
+
+        // --- INTERACTION ---
+        function updatePanTransform() {
+            mindmapContainer.style.transform = `translate(${state.pan.x}px, ${state.pan.y}px)`;
+            drawMinimap();
+        }
+        canvas.addEventListener('mousedown', (e) => {
+            if (e.target === canvas) {
+                isPanning = true; canvas.classList.add('panning');
+                panStart.x = e.clientX - state.pan.x; panStart.y = e.clientY - state.pan.y;
+            }
+        });
+        document.addEventListener('mousemove', (e) => {
+            if (isPanning) { state.pan.x = e.clientX - panStart.x; state.pan.y = e.clientY - panStart.y; updatePanTransform(); }
+        });
+        document.addEventListener('mouseup', () => {
+            if (isPanning) { isPanning = false; canvas.classList.remove('panning'); saveState(); }
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.target.matches('input, textarea, select')) return;
+            // Hotkeys?
+        });
+        function resizeSvgContainer() {
+            const svgEl = document.getElementById('svg-container');
+            if (!svgEl || Object.keys(state.nodes).length === 0) { if (svgEl) { svgEl.style.width = `100%`; svgEl.style.height = `100%`; } return; };
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            const padding = 500;
+            Object.values(state.nodes).forEach(node => {
+                minX = Math.min(minX, node.x);
+                minY = Math.min(minY, node.y);
+                maxX = Math.max(maxX, node.x + node.el.offsetWidth);
+                maxY = Math.max(maxY, node.y + node.el.offsetHeight);
+            });
+            mapBounds = { minX, minY, maxX, maxY, width: maxX - minX, height: maxY - minY };
+            svgEl.style.width = `${Math.max(maxX + padding, canvas.clientWidth)}px`;
+            svgEl.style.height = `${Math.max(maxY + padding, canvas.clientHeight)}px`;
+        }
+        function calculateMapBounds() {
+            if (Object.keys(state.nodes).length === 0) { mapBounds = { minX: 0, minY: 0, maxX: 0, maxY: 0, width: 0, height: 0, scale: 1 }; return; }
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            Object.values(state.nodes).forEach(node => {
+                minX = Math.min(minX, node.x);
+                minY = Math.min(minY, node.y);
+                maxX = Math.max(maxX, node.x + node.el.offsetWidth);
+                maxY = Math.max(maxY, node.y + node.el.offsetHeight);
+            });
+            const width = maxX - minX, height = maxY - minY;
+            const scaleX = minimapContainer.clientWidth / (width || 1), scaleY = minimapContainer.clientHeight / (height || 1);
+            mapBounds = { minX, minY, maxX, maxY, width, height, scale: Math.min(scaleX, scaleY, 1) };
+        }
+        function drawMinimap() {
+            requestAnimationFrame(() => {
+                calculateMapBounds();
+                minimapCanvas.width = minimapContainer.clientWidth; minimapCanvas.height = minimapContainer.clientHeight;
+                minimapCtx.clearRect(0, 0, minimapCanvas.width, minimapCanvas.height);
+                const R = getComputedStyle(document.documentElement);
+                Object.values(state.nodes).forEach(node => {
+                    const x = (node.x - mapBounds.minX) * mapBounds.scale;
+                    const y = (node.y - mapBounds.minY) * mapBounds.scale;
+                    const w = Math.max(1, node.el.offsetWidth * mapBounds.scale);
+                    const h = Math.max(1, node.el.offsetHeight * mapBounds.scale);
+                    let colorKey = `--${node.type.split('-')[0]}-bg`;
+                    if (node.type === 'audio') colorKey = '--audio-bg';
+                    minimapCtx.fillStyle = R.getPropertyValue(colorKey).trim();
+                    minimapCtx.fillRect(x, y, w, h);
+                });
+                const viewX = (-state.pan.x - mapBounds.minX) * mapBounds.scale;
+                const viewY = (-state.pan.y - mapBounds.minY) * mapBounds.scale;
+                const viewW = canvas.clientWidth * mapBounds.scale;
+                const viewH = canvas.clientHeight * mapBounds.scale;
+                minimapViewport.style.left = `${viewX}px`; minimapViewport.style.top = `${viewY}px`;
+                minimapViewport.style.width = `${viewW}px`; minimapViewport.style.height = `${viewH}px`;
+            });
+        }
+        function handleMinimapPan(e) {
+            e.preventDefault();
+            const rect = minimapContainer.getBoundingClientRect();
+            function pan(evt) {
+                const x = evt.clientX - rect.left;
+                const y = evt.clientY - rect.top;
+                state.pan.x = -(x / mapBounds.scale + mapBounds.minX - canvas.clientWidth / 2);
+                state.pan.y = -(y / mapBounds.scale + mapBounds.minY - canvas.clientHeight / 2);
+                updatePanTransform();
+            }
+            pan(e);
+            document.addEventListener('mousemove', pan);
+            document.addEventListener('mouseup', () => { document.removeEventListener('mousemove', pan); saveState(); }, { once: true });
+        }
+        function importScript() {
+            clearCanvas(false);
+            const script = scriptInput.value;
+            if (!script.trim()) return;
+            localStorage.setItem('renjsMindMapScriptV2', script);
+            try {
+                const doc = jsyaml.load(script);
+                layoutFromYaml(doc);
+                requestAnimationFrame(() => {
+                    updateAllLists();
+                    resizeSvgContainer();
+                    updateConnections();
+                    drawMinimap();
+                    saveState();
+                });
+            } catch (e) {
+                alert("Error parsing YAML: " + e.message);
+                console.error(e);
+            }
+        }
+
+        function genId() { return 'node-' + Date.now() + Math.random(); }
+
+        function layoutFromYaml(doc) {
+            const roots = [];
+            if (typeof doc !== 'object' || doc === null) return;
+
+            Object.entries(doc).forEach(([labelName, steps]) => {
+                const root = { type: 'label', id: genId(), content: { name: labelName }, children: [], width: 1, height: 1 };
+                if (Array.isArray(steps)) {
+                    root.children = parseSteps(steps);
+                }
+                roots.push(root);
+            });
+
+            // Layout
+            let y = 50; const X_SPACING = 320; const Y_SPACING = 180;
+            roots.forEach(root => {
+                calculateTreeWidth(root);
+                layoutNodeAndChildren(root, 50, y, X_SPACING, Y_SPACING);
+                y += (root.height * Y_SPACING) + 100;
+            });
+
+            createStateFromTrees(roots);
+        }
+
+        function getStepKeyVal(step) {
+            if (typeof step === 'string') return { key: step, val: null };
+            const key = Object.keys(step)[0];
+            return { key, val: step[key] };
+        }
+
+        function parseSteps(steps) {
+            if (!steps || !Array.isArray(steps) || steps.length === 0) return [];
+
+            const step = steps[0];
+            const { key, val } = getStepKeyVal(step);
+
+            let node = null;
+
+            // Logic to determine node type
+            if (key.startsWith('if ')) {
+                node = { type: 'if', id: genId(), content: { condition: key.substring(3).trim() }, children: [] };
+                // If body
+                if (Array.isArray(val)) {
+                    const branchNodes = parseSteps(val);
+                    if (branchNodes.length > 0) {
+                        branchNodes[0].isTrueBranch = true;
+                        node.children.push(branchNodes[0]);
+                    }
+                }
+                // Check if next step is else (RenJS YAML typically puts else as a sibling step)
+                if (steps.length > 1) {
+                    const nextStep = getStepKeyVal(steps[1]);
+                    if (nextStep.key.startsWith('else')) {
+                        const elseNode = { type: 'else', id: genId(), content: {}, children: [] };
+                        if (Array.isArray(nextStep.val)) {
+                            const elseBody = parseSteps(nextStep.val);
+                            if (elseBody.length > 0) elseNode.children.push(elseBody[0]);
+                        }
+                        node.children.push(elseNode);
+
+                        // Resume main flow after else? 
+                        // In mindmap, if/else usually converge or end. 
+                        // If there are steps after if/else blocks in the main list, they should attach to leaf nodes of if/else?
+                        // For simplicity, we'll treat steps after if/else as "following" the block, but visually it's hard.
+                        // We will just return the IF node. The user can manually connect convergence.
+                        return [node];
+                    }
+                }
+            } else if (key === 'choice') {
+                node = { type: 'choice', id: genId(), content: { text: 'User Choice' }, children: [] };
+                if (Array.isArray(val)) {
+                    val.forEach(opt => {
+                        const { key: optText, val: optSteps } = getStepKeyVal(opt);
+                        const branchNodes = parseSteps(optSteps);
+                        if (branchNodes.length > 0) {
+                            branchNodes[0].connectionLabel = optText;
+                            node.children.push(branchNodes[0]);
+                        }
+                    });
+                }
+                return [node]; // Choice terminates this linear branch visually
+            } else {
+                node = createNodeDataFromKeyVal(key, val);
+            }
+
+            if (!node) return parseSteps(steps.slice(1)); // Skip invalid
+
+            const rest = parseSteps(steps.slice(1));
+            if (rest.length > 0) {
+                node.children.push(rest[0]);
+            }
+            return [node];
+        }
+
+        function createNodeDataFromKeyVal(key, val) {
+            const id = genId();
+            if (key.endsWith(' says')) return { type: 'say', id, content: { actor: key.replace(' says', '').trim(), text: val }, children: [] };
+            if (key.includes(' says ')) { // "actor says emotion"
+                const parts = key.split(' says ');
+                return { type: 'say', id, content: { actor: parts[0], params: parts[1], text: val }, children: [] };
+            }
+            if (key.startsWith('show ')) return { type: 'show', id, content: { actor: key.substring(5).trim(), params: val }, children: [] };
+            if (key.startsWith('hide ')) return { type: 'hide', id, content: { actor: key.substring(5).trim() }, children: [] };
+            if (key.startsWith('scene ')) return { type: 'scene', id, content: { asset: key.substring(6).trim(), params: val }, children: [] };
+            if (key.startsWith('play ')) return { type: 'audio', id, content: { action: 'play', asset: key.substring(5).trim(), params: val }, children: [] };
+            if (key.startsWith('stop ')) return { type: 'audio', id, content: { action: 'stop', asset: key.substring(5).trim() }, children: [] };
+            if (key.startsWith('call ')) return { type: 'call', id, content: { target: key.substring(5).trim() }, children: [] };
+            if (key.startsWith('jump ')) return { type: 'scene', id, content: { asset: 'JUMP', params: key.substring(5).trim() }, children: [] }; // repurpose or use call
+            if (key === 'wait') return { type: 'wait', id, content: { duration: val }, children: [] };
+
+            // Generic effect or var
+            if (val === null || typeof val !== 'object') {
+                return { type: 'effect', id, content: { command: key, params: val }, children: [] };
+            }
+            return { type: 'effect', id, content: { command: key, params: JSON.stringify(val) }, children: [] };
+        }
+
+        function calculateTreeWidth(node) {
+            if (node.children.length === 0) { node.width = 1; node.height = 1; return; }
+            let totalWidth = 0; let maxHeight = 0;
+            node.children.forEach(child => {
+                calculateTreeWidth(child);
+                totalWidth += child.width;
+                maxHeight = Math.max(maxHeight, child.height);
+            });
+            node.width = Math.max(1, totalWidth);
+            node.height = 1 + maxHeight;
+        }
+
+        function layoutNodeAndChildren(node, x, y, xSpacing, ySpacing) {
+            node.x = x; node.y = y;
+            let currentChildX = x - (node.width * xSpacing / 2) + (xSpacing / 2); // Center alignment approx
+
+            // Better centering logic:
+            if (node.children.length > 1) {
+                currentChildX = x - (node.width * xSpacing / 2);
+            } else {
+                currentChildX = x;
+            }
+
+            // If strictly 1 child, align directly below. If branching, spread.
+
+            node.children.forEach((child, i) => {
+                // Determine X position based on child width
+                // Simple approach: Linear spread
+                const childCenter = currentChildX + (child.width * xSpacing / 2);
+                layoutNodeAndChildren(child, childCenter, y + ySpacing, xSpacing, ySpacing);
+                currentChildX += child.width * xSpacing;
+            });
+        }
+
+        function createStateFromTrees(roots) {
+            function process(node) {
+                createNode(node.type, node.id, { x: node.x, y: node.y, content: node.content });
+                node.children.forEach(child => {
+                    process(child);
+                    // Create connection
+                    state.connections.push({ from: node.id, to: child.id, label: child.connectionLabel });
+                    state.nodes[node.id].connections.out.push(child.id);
+                    if (child.connectionLabel) state.nodes[child.id].isMenuChoice = true;
+                });
+            }
+            roots.forEach(process);
+        }
+
+        function autoLayout() {
+            // Reuse import logic essentially, but we need to convert STATE to YAML first then re-layout?
+            // Or construct the tree from state. construction tree from state is harder with cyclic graphs.
+            // For now, let's just alert "Auto-layout only works on Import".
+            const yaml = generateCodeFromState();
+            const doc = jsyaml.load(yaml);
+            layoutFromYaml(doc);
+            requestAnimationFrame(() => {
+                resizeSvgContainer();
+                updateConnections();
+                drawMinimap();
+                saveState();
+            });
+        }
+        function createNode(type, id = null, data = null) {
+            const nodeId = id || 'node-' + Date.now() + Math.random();
+            const node = document.createElement('div');
+            node.id = nodeId;
+            node.className = `node ${type}`;
+            let contentHtml = '', headerText = '';
+
+            if (data) { node.style.left = `${data.x}px`; node.style.top = `${data.y}px`; }
+            else {
+                const centerX = -state.pan.x + (canvas.clientWidth / 2) - 110;
+                const centerY = -state.pan.y + (canvas.clientHeight / 2) - 50;
+                node.style.left = `${centerX}px`; node.style.top = `${centerY}px`;
+            }
+
+            switch (type) {
+                case 'label': headerText = 'Label / Story Part'; contentHtml = `<input data-field="name" placeholder="Name (e.g., start)">`; break;
+                case 'say': headerText = 'Say'; contentHtml = `<input data-field="actor" placeholder="Actor"><input data-field="params" placeholder="Params (e.g. happy)"><textarea rows="2" data-field="text" placeholder="Dialogue..."></textarea>`; break;
+                case 'choice': headerText = 'Choice Menu'; contentHtml = `<input data-field="text" placeholder="Description/Note">`; break;
+                case 'scene': headerText = 'Scene'; contentHtml = `<input data-field="asset" placeholder="Background/Scene"><input data-field="params" placeholder="Params (e.g. WITH FADE)">`; break;
+                case 'show': headerText = 'Show'; contentHtml = `<input data-field="actor" placeholder="Actor"><input data-field="params" placeholder="Params (e.g. happy AT LEFT)">`; break;
+                case 'hide': headerText = 'Hide'; contentHtml = `<input data-field="actor" placeholder="Actor">`; break;
+                case 'audio': headerText = 'Audio'; contentHtml = `<select data-field="action"><option value="play">Play</option><option value="stop">Stop</option></select><input data-field="asset" placeholder="Asset ID"><input data-field="params" placeholder="Params (e.g. LOOP)">`; break;
+                case 'wait': headerText = 'Wait'; contentHtml = `<input data-field="duration" placeholder="Duration (ms) or 'input'">`; break;
+                case 'call': headerText = 'Call Label'; contentHtml = `<input data-field="target" placeholder="Label Name">`; break;
+                case 'effect': headerText = 'Effect / Cmd'; contentHtml = `<input data-field="command" placeholder="Command Key"><textarea data-field="params" placeholder="Value (YAML/JSON)"></textarea>`; break;
+                case 'if': headerText = 'If Condition'; contentHtml = `<input data-field="condition" placeholder="Condition (e.g. var == true)">`; break;
+                case 'else': headerText = 'Else'; contentHtml = `<div style="font-size:12px;color:#aaa;">Connect from If</div>`; break;
+                case 'variable': headerText = 'Set Variable'; contentHtml = `<input data-field="varName" placeholder="Variable"><input data-field="value" placeholder="Value">`; break;
+                default: headerText = type; contentHtml = `<textarea data-field="data"></textarea>`;
+            }
+
+            node.innerHTML = `<div class="node-header"><span>${headerText}</span><span class="delete-btn" title="Delete Node">&times;</span></div><div class="node-content">${contentHtml}</div><div class="connector" title="Create Connection"></div>`;
+            mindmapContainer.insertBefore(node, mindmapContainer.firstChild);
+
+            state.nodes[nodeId] = { id: nodeId, el: node, type: type, x: parseInt(node.style.left), y: parseInt(node.style.top), content: data?.content || {}, connections: { out: data?.connections?.out || [] } };
+            if (data) Object.assign(state.nodes[nodeId].content, data.content);
+
+            Object.entries(state.nodes[nodeId].content).forEach(([field, value]) => {
+                const input = node.querySelector(`[data-field="${field}"]`);
+                if (input) input.value = value;
+            });
+
+            node.addEventListener('mousedown', startDrag);
+            node.querySelector('.delete-btn').addEventListener('click', () => deleteNode(nodeId));
+            node.querySelector('.connector').addEventListener('click', (e) => startConnection(e, nodeId));
+            node.addEventListener('click', (e) => { if (connectionState.active && connectionState.fromNode !== nodeId) endConnection(nodeId); });
+
+            node.querySelectorAll('input, textarea, select').forEach(input => {
+                input.addEventListener('input', (e) => {
+                    const field = e.target.dataset.field;
+                    state.nodes[nodeId].content[field] = e.target.value;
+                    const nameField = ['label'].includes(type) ? 'name' : null;
+                    if (field === nameField) { updateAllLists(); }
+                    if (type === 'choice') { updateConnections(); } // Update labels if description changes? No, labels are on connections.
+                    saveState();
+                });
+            });
+
+            if (!data) { saveState(); requestAnimationFrame(() => { resizeSvgContainer(); drawMinimap(); }); }
+        }
+
+        function deleteNode(nodeId) {
+            const node = state.nodes[nodeId];
+            if (!node) return;
+            const nodeType = node.type;
+            state.connections = state.connections.filter(conn => conn.from !== nodeId && conn.to !== nodeId);
+            Object.values(state.nodes).forEach(n => { n.connections.out = n.connections.out.filter(outId => outId !== nodeId); });
+            node.el.remove();
+            delete state.nodes[nodeId];
+            updateConnections(); saveState();
+        }
+
+        function updateAllLists() {
+            // Placeholder if we want auto-complete lists in future
+        }
+        function updateDatalist(id, type, field) { } // removed usage
+
+        function startDrag(e) {
+            if (e.target.matches('input, textarea, select, .connector, .delete-btn')) return;
+            e.preventDefault(); activeNode = e.currentTarget;
+            dragOffset.x = e.clientX - activeNode.offsetLeft - state.pan.x;
+            dragOffset.y = e.clientY - activeNode.offsetTop - state.pan.y;
+            document.addEventListener('mousemove', dragNode);
+            document.addEventListener('mouseup', stopDrag);
+        }
+        function dragNode(e) {
+            if (!activeNode) return;
+            const nodeData = state.nodes[activeNode.id];
+            nodeData.x = e.clientX - dragOffset.x - state.pan.x;
+            nodeData.y = e.clientY - dragOffset.y - state.pan.y;
+            activeNode.style.left = `${nodeData.x}px`; activeNode.style.top = `${nodeData.y}px`;
+            updateConnections();
+            resizeSvgContainer();
+            drawMinimap();
+        }
+        function stopDrag() { if (activeNode) { activeNode = null; saveState(); resizeSvgContainer(); } document.removeEventListener('mousemove', dragNode); document.removeEventListener('mouseup', stopDrag); }
+
+        function startConnection(e, fromNodeId) {
+            e.stopPropagation(); if (connectionState.active) return;
+            connectionState.active = true; connectionState.fromNode = fromNodeId;
+            e.target.classList.add('connecting');
+            connectionState.line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            connectionState.line.setAttribute('stroke', '#99aab5'); connectionState.line.setAttribute('stroke-width', '2'); connectionState.line.setAttribute('fill', 'none');
+            document.getElementById('svg-container').appendChild(connectionState.line);
+            canvas.addEventListener('mousemove', moveConnectionLine);
+        }
+        function moveConnectionLine(e) {
+            if (!connectionState.active) return;
+            const fromNode = state.nodes[connectionState.fromNode];
+            const startX = fromNode.x + fromNode.el.offsetWidth / 2;
+            const startY = fromNode.y + fromNode.el.offsetHeight;
+            const endX = e.clientX - state.pan.x; const endY = e.clientY - state.pan.y;
+            const d = `M ${startX} ${startY} C ${startX} ${startY + 50}, ${endX} ${endY - 50}, ${endX} ${endY}`;
+            connectionState.line.setAttribute('d', d);
+        }
+        function endConnection(toNodeId) {
+            const fromNodeId = connectionState.fromNode;
+            if (fromNodeId === toNodeId) { resetConnectionState(); return; };
+
+            let label = null;
+            if (state.nodes[fromNodeId].type === 'choice') {
+                label = prompt("Option Text:", "Next Option");
+                if (label === null) { resetConnectionState(); return; } // Cancelled
+            }
+
+            if (!state.nodes[fromNodeId].connections.out.includes(toNodeId)) {
+                state.nodes[fromNodeId].connections.out.push(toNodeId);
+                state.connections.push({ from: fromNodeId, to: toNodeId, label: label });
+            }
+            resetConnectionState(); updateConnections(); saveState();
+        }
+        function resetConnectionState() {
+            canvas.removeEventListener('mousemove', moveConnectionLine);
+            if (connectionState.line) connectionState.line.remove();
+            if (connectionState.fromNode && state.nodes[connectionState.fromNode]) {
+                const connEl = state.nodes[connectionState.fromNode].el.querySelector('.connector');
+                if (connEl) connEl.classList.remove('connecting');
+            }
+            connectionState = { active: false, fromNode: null, line: null };
+        }
+        function breakConnection(fromId, toId) {
+            state.connections = state.connections.filter(c => !(c.from === fromId && c.to === toId));
+            if (state.nodes[fromId]) { state.nodes[fromId].connections.out = state.nodes[fromId].connections.out.filter(id => id !== toId); }
+            updateConnections(); saveState();
+        }
+        canvas.addEventListener('click', () => { if (connectionState.active) resetConnectionState(); });
+
+        function updateConnections() {
+            const svgEl = document.getElementById('svg-container'); if (!svgEl) return;
+            svgEl.innerHTML = '';
+            const R = getComputedStyle(document.documentElement);
+            state.connections.forEach(conn => {
+                const fromNode = state.nodes[conn.from]; const toNode = state.nodes[conn.to];
+                if (!fromNode || !toNode) return;
+                const startX = fromNode.x + fromNode.el.offsetWidth / 2; const startY = fromNode.y + fromNode.el.offsetHeight - 7;
+                const endX = toNode.x + toNode.el.offsetWidth / 2; const endY = toNode.y;
+                const midX = (startX + endX) / 2; const midY = (startY + endY) / 2;
+
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                const d = `M ${startX} ${startY} C ${startX} ${startY + 50}, ${endX} ${endY - 50}, ${endX} ${endY}`;
+                path.setAttribute('d', d); path.setAttribute('fill', 'none');
+
+                let color = R.getPropertyValue('--accent-color').trim();
+                let width = '2';
+
+                if (conn.label) {
+                    color = R.getPropertyValue('--menu-bg').trim(); width = '3';
+                    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    text.setAttribute('x', midX); text.setAttribute('y', midY); text.setAttribute('dy', '-5');
+                    text.classList.add('connection-label');
+                    text.textContent = `"${conn.label}"`;
+                    svgEl.appendChild(text);
+                }
+
+                path.setAttribute('stroke', color); path.setAttribute('stroke-width', width);
+
+                const hitbox = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                hitbox.setAttribute('d', d); hitbox.setAttribute('stroke', 'transparent'); hitbox.setAttribute('stroke-width', '15'); hitbox.setAttribute('fill', 'none');
+                hitbox.onclick = () => breakConnection(conn.from, conn.to);
+
+                const markerId = `arrowhead-${conn.from}-${conn.to}`;
+                const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+                marker.setAttribute('id', markerId); marker.setAttribute('viewBox', '0 0 10 10'); marker.setAttribute('refX', '8'); marker.setAttribute('refY', '5');
+                marker.setAttribute('markerWidth', '6'); marker.setAttribute('markerHeight', '6'); marker.setAttribute('orient', 'auto-start-reverse');
+                const arrowPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                arrowPath.setAttribute('d', 'M 0 0 L 10 5 L 0 10 z'); arrowPath.setAttribute('fill', color);
+                marker.appendChild(arrowPath); svgEl.appendChild(marker);
+                path.setAttribute('marker-end', `url(#${markerId})`);
+
+                svgEl.appendChild(path); svgEl.appendChild(hitbox);
+            });
+        }
+
+        function exportScript() {
+            try {
+                const yaml = generateYamlFromState();
+                scriptInput.value = yaml;
+                alert("Story exported to text area (RenJS YAML)!");
+            } catch (e) {
+                console.error(e);
+                alert("Export Failed: " + e.message);
+            }
+        }
+
+        function generateYamlFromState() {
+            const obj = {};
+            const labels = Object.values(state.nodes).filter(n => n.type === 'label');
+            labels.forEach(labelNode => {
+                const name = labelNode.content.name || 'label_' + labelNode.id;
+                obj[name] = getChildrenSteps(labelNode.id);
+            });
+            return jsyaml.dump(obj, { lineWidth: -1 });
+        }
+
+        function getChildrenSteps(nodeId) {
+            const outConns = state.connections.filter(c => c.from === nodeId);
+            // Sort by target Y to keep visual order
+            outConns.sort((a, b) => state.nodes[a.to].y - state.nodes[b.to].y);
+
+            if (outConns.length === 0) return [];
+
+            // If linear, follow the chain
+            // RenJS structure assumes linear list of steps
+
+            // If we have multiple outputs and we are NOT a choice/if node, it's ambiguous.
+            // We'll take the first one.
+            return traverseChain(outConns[0].to);
+        }
+
+        function traverseChain(nodeId) {
+            const node = state.nodes[nodeId];
+            if (!node) return [];
+
+            const step = nodeToRenJSStep(node);
+
+            // Recurse
+            let childSteps = [];
+
+            // Special handling for Choice and If which contain their children
+            if (node.type === 'choice') {
+                // The step already contains the choices as value
+                // So we don't follow children linearly, we are done with this node's chain contribution.
+                // But wait, what if there is code *after* the choice block?
+                // In RenJS, choice is usually terminal or loops back.
+                // If visually connected... choice doesn't have a single "next".
+                return [step];
+            } else if (node.type === 'if') {
+                // Similar to choice, If contains branches.
+                return [step];
+            } else {
+                // Linear
+                const outConns = state.connections.filter(c => c.from === nodeId);
+                outConns.sort((a, b) => state.nodes[a.to].y - state.nodes[b.to].y);
+                if (outConns.length > 0) {
+                    childSteps = traverseChain(outConns[0].to);
+                }
+            }
+
+            return [step, ...childSteps];
+        }
+
+        function nodeToRenJSStep(node) {
+            const c = node.content;
+            switch (node.type) {
+                case 'say':
+                    let key = c.actor || 'narrator';
+                    if (c.params) key += ` says ${c.params}`;
+                    else key += ' says';
+                    const s = {}; s[key] = c.text; return s;
+                case 'choice':
+                    const choiceObj = { choice: [] };
+                    // Find options
+                    const opts = state.connections.filter(conn => conn.from === node.id);
+                    // Sort options by Y
+                    opts.sort((a, b) => state.nodes[a.to].y - state.nodes[b.to].y);
+                    choiceObj.choice = opts.map(conn => {
+                        const opt = {};
+                        opt[conn.label || 'Option'] = traverseChain(conn.to);
+                        return opt;
+                    });
+                    return choiceObj;
+                case 'if':
+                    const ifObj = {};
+                    ifObj[`if ${c.condition}`] = getChildrenSteps(node.id); // Valid?
+                    // My getChildrenSteps logic follows first connection.
+                    // If 'if' has True and False branches...
+                    // We need to distinguish connections. 
+                    // The parser marked 'isTrueBranch' but visual editor has no explicit way to mark connections as True/False yet
+                    // except maybe order or label?
+                    // Let's assume Top connection is True, Bottom is Else/False?
+                    // Or look for an 'else' node connected?
+
+                    // Helper: Find connected 'else' node
+                    const outIDs = state.connections.filter(con => con.from === node.id).map(c => c.to);
+                    const elseNodeId = outIDs.find(id => state.nodes[id].type === 'else');
+                    const notElseId = outIDs.find(id => state.nodes[id].type !== 'else');
+
+                    if (notElseId) {
+                        ifObj[`if ${c.condition}`] = traverseChain(notElseId);
+                    }
+
+                    /*
+                    if (elseNodeId) {
+                       // RenJS YAML:
+                       // - if cond:
+                       //    - steps
+                       // - else:
+                       //    - steps
+                       // The 'else' is a separate step in the list, typically.
+                       // But here we are returning a SINGLE step object.
+                       // So we can't return [ifObject, elseObject].
+                       // Wait, traverseChain returns a LIST of steps.
+                       // So we can return multiple steps here? No `traverseChain` returns `[step, ...children]`.
+                    }
+                    */
+                    return ifObj;
+                // Handling 'else' is tricky if we treat node as single step.
+                // We might need to handle 'else' in the parent chain walker?
+                // Or we return a list of Step Objects from this node?
+
+                case 'else':
+                    // Else should be handled by the IF logic if possible, or appear as adjacent step.
+                    // If we encounter 'else' in traverseChain, it means we flowed into it?
+                    // Usually 'if' node connects to 'else' node? 
+                    // In my layout parser: `node.children.push(elseNode)`.
+                    // So If connects to Else.
+                    // So `traverseChain` of If will find Else as child?
+                    // If so, we return `if` block, AND THEN `else` block?
+
+                    // Let's simplified: If node returns { 'if...': ... }.
+                    // The If node has multiple outputs in my parser: TrueBranch, and ElseNode.
+                    // `traverseChain` follows only one (the first sorted by Y).
+                    // This is a limitation of the simplisitic walker.
+
+                    // Correct fix: traverseChain should handle multiple siblings if standard flow?
+
+                    return { 'else': [] }; // Placeholder
+
+                case 'show':
+                    const showKey = `show ${c.actor}`;
+                    const showVal = c.params || null;
+                    const showObj = {}; showObj[showKey] = showVal; return showObj;
+                case 'hide': return { [`hide ${c.actor}`]: null };
+                case 'scene':
+                    const sceneKey = `scene ${c.asset}`;
+                    const sceneObj = {}; sceneObj[sceneKey] = c.params || null; return sceneObj;
+                case 'audio':
+                    const audioKey = `${c.action} ${c.asset}`;
+                    const audioObj = {}; audioObj[audioKey] = c.params || null; return audioObj;
+                case 'wait': return { wait: c.duration };
+                case 'call': return { call: c.target };
+                case 'variable':
+                    const varObj = {}; varObj[c.varName] = c.value; return varObj;
+                case 'effect':
+                    const effObj = {};
+                    let p = c.params;
+                    try { p = JSON.parse(c.params); } catch (e) { }
+                    effObj[c.command] = p;
+                    return effObj;
+                default:
+                    return c.text || '...';
+            }
+        }
+    </script>
+</body>
+
+</html>
